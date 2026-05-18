@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UniFind Admin — Users</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="shell" class="app"></div>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    (async () => {
+      const user = await requireAdmin();
+      if (!user) return;
+      renderShell('users', user);
+      const main = document.getElementById('main');
+      main.innerHTML = `
+        <div class="page-head"><h2>Users</h2></div>
+        <div class="toolbar">
+          <input id="q" placeholder="Search by name or email" />
+          <button class="btn" id="go">Search</button>
+        </div>
+        <div class="panel" style="padding:0">
+          <table id="tbl">
+            <thead><tr>
+              <th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Faculty</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody><tr><td colspan="7" style="padding:20px;color:var(--muted)">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      `;
+
+      async function load() {
+        const q = document.getElementById('q').value.trim();
+        const params = new URLSearchParams();
+        if (q) params.set('q', q);
+        const data = await api('/api/admin/users?' + params.toString());
+        const rows = (data.users || []).map(u => `
+          <tr>
+            <td>#${u.id}</td>
+            <td>${(u.display_name || '').replace(/</g,'&lt;')}</td>
+            <td>${u.email}</td>
+            <td><span class="badge ${u.role}">${u.role}</span></td>
+            <td>${u.faculty || '—'}</td>
+            <td>${u.is_active ? 'Active' : 'Suspended'}</td>
+            <td>
+              ${u.role === 'admin'
+                ? '<span style="color:var(--muted);font-size:12px">—</span>'
+                : (u.is_active
+                    ? `<button class="btn" style="background:var(--red)" onclick="suspend(${u.id})">Suspend</button>`
+                    : `<button class="btn" onclick="activate(${u.id})">Reactivate</button>`)}
+            </td>
+          </tr>
+        `).join('') || '<tr><td colspan="7" style="padding:20px;color:var(--muted)">No users match.</td></tr>';
+        document.querySelector('#tbl tbody').innerHTML = rows;
+      }
+
+      window.suspend = async (id) => {
+        if (!confirm('Suspend this user?')) return;
+        await api(`/api/admin/users/${id}/suspend`, 'PUT');
+        load();
+      };
+      window.activate = async (id) => {
+        await api(`/api/admin/users/${id}/activate`, 'PUT');
+        load();
+      };
+
+      document.getElementById('go').addEventListener('click', load);
+      document.getElementById('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') load(); });
+      load();
+    })();
+  </script>
+</body>
+</html>

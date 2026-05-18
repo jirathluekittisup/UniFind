@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UniFind Admin — Login</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="center-screen">
+  <main class="login-card">
+    <div class="brand">
+      <span class="logo-dot"></span>
+      <h1>UniFind<span>Admin</span></h1>
+    </div>
+    <p class="tag">Security office dashboard</p>
+    <form id="login-form">
+      <label>Email
+        <input type="email" name="email" required placeholder="admin@student.chula.ac.th" />
+      </label>
+      <label>Password
+        <input type="password" name="password" required />
+      </label>
+      <button type="submit">Sign in</button>
+      <p id="login-err" class="error hidden"></p>
+    </form>
+    <p class="hint">Demo admin: admin@student.chula.ac.th / password123</p>
+  </main>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    if (getToken()) location.href = 'dashboard.html';
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      try {
+        const res = await api('/api/auth/login', 'POST', {
+          email: f.get('email'), password: f.get('password')
+        });
+        if (res.user.role !== 'admin' && res.user.role !== 'super_admin') throw new Error('Admin access required');
+        setToken(res.token);
+        location.href = 'dashboard.html';
+      } catch (err) {
+        const el = document.getElementById('login-err');
+        el.textContent = err.message || 'Login failed';
+        el.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

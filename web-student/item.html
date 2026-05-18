@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UniFind — Item</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <script src="js/api.js"></script>
+  <script src="js/nav.js"></script>
+  <script>if (!requireAuth()) {} else renderNav();</script>
+
+  <div class="container">
+    <a href="browse.html" class="muted" style="font-size:14px">&larr; Back to browse</a>
+    <div id="root" style="margin-top:12px"><p class="muted">Loading…</p></div>
+  </div>
+
+  <script>
+    const id = new URLSearchParams(location.search).get('id');
+
+    async function load() {
+      if (!id) { document.getElementById('root').innerHTML = '<p class="error">Missing item id</p>'; return; }
+      try {
+        const data = await api('/api/items/' + id);
+        render(data.item);
+      } catch (e) {
+        document.getElementById('root').innerHTML = `<p class="error">${esc(e.message)}</p>`;
+      }
+    }
+
+    function render(item) {
+      const me = getUser();
+      const isOwner = me && me.id === item.user_id;
+      const photo = resolvePhotoUrl((item.photos && item.photos[0]) || item.photo_url);
+      const hero = photo
+        ? `<img src="${esc(photo)}" class="detail-hero" alt="" />`
+        : `<div class="detail-hero placeholder">📦</div>`;
+      const tags = (item.tags || []).map(t => `<span class="tag">#${esc(t)}</span>`).join('');
+      const isActive = item.status === 'active';
+
+      let actionBlock = '';
+      if (isOwner) {
+        actionBlock = `
+          <div class="claim-box">
+            <h3>You posted this item</h3>
+            <p class="muted" style="margin:0 0 10px">View and approve claims from your profile.</p>
+            <a href="profile.html"><button class="primary" style="width:auto;padding:10px 18px">Go to My Account</button></a>
+          </div>`;
+      } else if (isActive) {
+        const verb = item.type === 'lost' ? 'I found this item' : 'This is my item';
+        actionBlock = `
+          <div class="claim-box">
+            <h3>${verb}</h3>
+            <label>Describe an identifying detail only the owner would know
+              <textarea id="proof" required></textarea>
+            </label>
+            <button class="primary" id="claim-btn" onclick="submitClaim()">Submit Claim</button>
+            <p class="error hidden" id="claim-err"></p>
+          </div>`;
+      }
+
+      document.getElementById('root').innerHTML = `
+        ${hero}
+        <div style="margin-top:16px">
+          <span class="badge ${item.type}">${item.type.toUpperCase()}</span>
+          <span class="badge status">${(item.status || '').toUpperCase()}</span>
+        </div>
+        <h1 class="detail-title">${esc(item.title)}</h1>
+        <div class="detail-meta">${esc(item.category)} · ${esc(item.location || '')}</div>
+        <div class="detail-meta">On ${fmtDate(item.event_date)}</div>
+        <div class="detail-meta">Posted by ${esc(item.user_name || 'Unknown')}</div>
+        ${item.description ? `<p class="detail-desc">${esc(item.description)}</p>` : ''}
+        ${tags ? `<div class="tags">${tags}</div>` : ''}
+        ${actionBlock}
+      `;
+    }
+
+    async function submitClaim() {
+      const btn = document.getElementById('claim-btn');
+      const err = document.getElementById('claim-err');
+      const proof = document.getElementById('proof').value.trim();
+      err.classList.add('hidden');
+      if (!proof) { err.textContent = 'Proof is required'; err.classList.remove('hidden'); return; }
+      btn.disabled = true; btn.textContent = 'Submitting…';
+      try {
+        await api('/api/claims', 'POST', { item_id: Number(id), proof });
+        btn.textContent = 'Submitted ✓';
+        err.textContent = 'The owner will review your claim.'; err.style.color = 'var(--green)'; err.classList.remove('hidden');
+      } catch (e) {
+        err.style.color = ''; err.textContent = e.message; err.classList.remove('hidden');
+        btn.disabled = false; btn.textContent = 'Submit Claim';
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

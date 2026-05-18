@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UniFind — Report Item</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <script src="js/api.js"></script>
+  <script src="js/nav.js"></script>
+  <script>if (!requireAuth()) {} else renderNav('report.html');</script>
+
+  <div class="container" style="max-width:640px">
+    <div class="page-head"><h2>Report an Item</h2></div>
+
+    <form onsubmit="return submitReport(event)">
+      <div class="chips" id="type-chips">
+        <div class="chip active" data-value="lost" onclick="pickType('lost')">I lost this</div>
+        <div class="chip" data-value="found" onclick="pickType('found')">I found this</div>
+      </div>
+
+      <label>Title
+        <input name="title" required placeholder="e.g. Black leather wallet" />
+      </label>
+      <label>Description
+        <textarea name="description" placeholder="Any details that help identify it"></textarea>
+      </label>
+
+      <label style="margin-bottom:6px">Category</label>
+      <div class="chips" id="cat-chips"></div>
+
+      <label>Location
+        <input name="location" required placeholder="e.g. Library 2F" />
+      </label>
+      <label>Date
+        <input name="event_date" type="date" required />
+      </label>
+      <label>Tags (comma separated)
+        <input name="tags" placeholder="black, leather, small" />
+      </label>
+
+      <label>Photo (optional)
+        <input name="photo" type="file" accept="image/*" onchange="onFile(event)" />
+      </label>
+      <img id="preview" class="preview hidden" />
+
+      <button type="submit" id="submit-btn" class="primary accent">Post Report</button>
+      <p class="error hidden" id="err"></p>
+    </form>
+  </div>
+
+  <script>
+    let selectedType = 'lost';
+    let selectedCat = 'Other';
+    const CATS = ['Electronics','Accessories','Clothing','Documents','Keys','Bags','Books','Other'];
+
+    document.getElementById('cat-chips').innerHTML = CATS.map(c =>
+      `<div class="chip ${c === selectedCat ? 'active' : ''}" data-value="${c}" onclick="pickCat('${c}')">${c}</div>`
+    ).join('');
+    document.querySelector('input[name=event_date]').value = new Date().toISOString().slice(0, 10);
+
+    function pickType(t) {
+      selectedType = t;
+      document.querySelectorAll('#type-chips .chip').forEach(el =>
+        el.classList.toggle('active', el.dataset.value === t));
+    }
+
+    function pickCat(c) {
+      selectedCat = c;
+      document.querySelectorAll('#cat-chips .chip').forEach(el =>
+        el.classList.toggle('active', el.dataset.value === c));
+    }
+
+    function onFile(e) {
+      const f = e.target.files[0];
+      const prev = document.getElementById('preview');
+      if (!f) { prev.classList.add('hidden'); return; }
+      prev.src = URL.createObjectURL(f);
+      prev.classList.remove('hidden');
+    }
+
+    async function uploadPhoto(file) {
+      const form = new FormData();
+      form.append('file', file);
+      const data = await api('/api/uploads', 'POST', form);
+      return data.url;
+    }
+
+    async function submitReport(e) {
+      e.preventDefault();
+      const err = document.getElementById('err');
+      const btn = document.getElementById('submit-btn');
+      err.classList.add('hidden');
+      btn.disabled = true; btn.textContent = 'Posting…';
+      try {
+        const f = e.target;
+        const file = f.photo.files[0];
+        let photoUrl = null;
+        if (file) {
+          btn.textContent = 'Uploading photo…';
+          photoUrl = await uploadPhoto(file);
+        }
+        btn.textContent = 'Posting…';
+        const body = {
+          type: selectedType,
+          title: f.title.value,
+          description: f.description.value,
+          category: selectedCat,
+          location: f.location.value,
+          event_date: f.event_date.value,
+          photos: photoUrl ? [photoUrl] : [],
+          tags: f.tags.value.split(',').map(s => s.trim()).filter(Boolean),
+        };
+        const data = await api('/api/items', 'POST', body);
+        location.href = 'item.html?id=' + data.item.id;
+      } catch (ex) {
+        err.textContent = ex.message; err.classList.remove('hidden');
+        btn.disabled = false; btn.textContent = 'Post Report';
+      }
+      return false;
+    }
+  </script>
+</body>
+</html>

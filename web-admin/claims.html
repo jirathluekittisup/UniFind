@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UniFind Admin — Claims</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="shell" class="app"></div>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+    (async () => {
+      const user = await requireAdmin();
+      if (!user) return;
+      renderShell('claims', user);
+      const main = document.getElementById('main');
+      main.innerHTML = `
+        <div class="page-head"><h2>Claims</h2></div>
+        <div class="toolbar" style="margin-bottom:16px">
+          <select id="status">
+            <option value="">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="resolved">Resolved</option>
+          </select>
+          <button class="btn" id="go">Apply</button>
+        </div>
+        <div class="panel" style="padding:0">
+          <table>
+            <thead><tr>
+              <th>ID</th><th>Item</th><th>Type</th><th>Claimant</th>
+              <th>Owner</th><th>Proof</th><th>Status</th><th>Created</th>
+            </tr></thead>
+            <tbody id="tbody"><tr><td colspan="8" style="padding:20px;color:var(--muted)">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      `;
+
+      const tbody = document.getElementById('tbody');
+      const statusSel = document.getElementById('status');
+
+      async function load() {
+        tbody.innerHTML = `<tr><td colspan="8" style="padding:20px;color:var(--muted)">Loading…</td></tr>`;
+        try {
+          const qs = statusSel.value ? '?status=' + statusSel.value : '';
+          const data = await api('/api/admin/claims' + qs);
+          const rows = data.claims || [];
+          if (rows.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" style="padding:20px;color:var(--muted)">No claims.</td></tr>`;
+            return;
+          }
+          tbody.innerHTML = rows.map(c => `
+            <tr>
+              <td>${c.id}</td>
+              <td>${esc(c.item_title)}</td>
+              <td><span class="badge ${c.item_type}">${c.item_type.toUpperCase()}</span></td>
+              <td>${esc(c.claimant_name)}</td>
+              <td>${esc(c.item_owner_name)}</td>
+              <td style="max-width:280px">${esc(c.proof)}</td>
+              <td><span class="badge ${c.status}">${c.status}</span></td>
+              <td>${c.created_at ? new Date(c.created_at).toLocaleString() : ''}</td>
+            </tr>
+          `).join('');
+        } catch (e) {
+          tbody.innerHTML = `<tr><td colspan="8" style="padding:20px;color:var(--red)">${esc(e.message)}</td></tr>`;
+        }
+      }
+
+      document.getElementById('go').onclick = load;
+      load();
+    })();
+  </script>
+</body>
+</html>

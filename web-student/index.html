@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UniFind — Login</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="center-screen">
+    <div class="login-card">
+      <h1><span style="width:12px;height:12px;border-radius:50%;background:var(--sky);display:inline-block"></span> UniFind <span>Lost &amp; Found</span></h1>
+      <p class="tag">Reuniting students with their belongings.</p>
+
+      <div class="tabs">
+        <button id="t-login" class="active" onclick="showTab('login')">Login</button>
+        <button id="t-register" onclick="showTab('register')">Register</button>
+      </div>
+
+      <form id="login-form" onsubmit="return submitLogin(event)">
+        <label>Email
+          <input name="email" type="email" required placeholder="you@student.chula.ac.th" />
+        </label>
+        <label>Password
+          <input name="password" type="password" required />
+        </label>
+        <button class="primary" type="submit">Login</button>
+        <p class="error hidden" id="login-err"></p>
+      </form>
+
+      <form id="register-form" class="hidden" onsubmit="return submitRegister(event)">
+        <label>University email
+          <input name="email" type="email" required placeholder="you@student.chula.ac.th" />
+        </label>
+        <label>Display name
+          <input name="display_name" required />
+        </label>
+        <label>Faculty (optional)
+          <input name="faculty" />
+        </label>
+        <label>Password (min 8 chars)
+          <input name="password" type="password" minlength="8" required />
+        </label>
+        <button class="primary" type="submit">Create account</button>
+        <p class="error hidden" id="register-err"></p>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    if (getToken()) location.href = 'browse.html';
+
+    function showTab(t) {
+      document.getElementById('t-login').classList.toggle('active', t === 'login');
+      document.getElementById('t-register').classList.toggle('active', t === 'register');
+      document.getElementById('login-form').classList.toggle('hidden', t !== 'login');
+      document.getElementById('register-form').classList.toggle('hidden', t !== 'register');
+    }
+
+    async function submitLogin(e) {
+      e.preventDefault();
+      const err = document.getElementById('login-err');
+      err.classList.add('hidden');
+      const f = e.target;
+      try {
+        const data = await api('/api/auth/login', 'POST', {
+          email: f.email.value, password: f.password.value,
+        });
+        setToken(data.token); setUser(data.user);
+        location.href = 'browse.html';
+      } catch (ex) {
+        err.textContent = ex.message; err.classList.remove('hidden');
+      }
+      return false;
+    }
+
+    async function submitRegister(e) {
+      e.preventDefault();
+      const err = document.getElementById('register-err');
+      err.classList.add('hidden');
+      const f = e.target;
+      try {
+        const data = await api('/api/auth/register', 'POST', {
+          email: f.email.value,
+          display_name: f.display_name.value,
+          faculty: f.faculty.value || null,
+          password: f.password.value,
+        });
+        setToken(data.token); setUser(data.user);
+        location.href = 'browse.html';
+      } catch (ex) {
+        err.textContent = ex.message; err.classList.remove('hidden');
+      }
+      return false;
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UniFind — My Account</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <script src="js/api.js"></script>
+  <script src="js/nav.js"></script>
+  <script>if (!requireAuth()) {} else renderNav('profile.html');</script>
+
+  <div class="container">
+    <div class="page-head">
+      <div>
+        <h2 id="name"></h2>
+        <div class="muted" id="email"></div>
+      </div>
+    </div>
+
+    <h3>Notifications (<span id="unread">0</span> unread)</h3>
+    <div id="notifs" class="list"></div>
+
+    <h3 style="margin-top:28px">My Reports</h3>
+    <div id="items" class="grid"></div>
+
+    <h3 style="margin-top:28px">Claims I Submitted</h3>
+    <div id="my-claims" class="list"></div>
+
+    <h3 style="margin-top:28px">Claims on My Items</h3>
+    <div id="their-claims" class="list"></div>
+  </div>
+
+  <script>
+    const me = getUser();
+    if (me) {
+      document.getElementById('name').textContent = me.display_name || '';
+      document.getElementById('email').textContent = me.email || '';
+    }
+
+    async function load() {
+      try {
+        const [notifs, items, mine, on] = await Promise.all([
+          api('/api/notifications'),
+          api('/api/items/mine'),
+          api('/api/claims/mine').catch(() => ({ claims: [] })),
+          api('/api/claims/on-my-items').catch(() => ({ claims: [] })),
+        ]);
+        renderNotifs(notifs.notifications || []);
+        renderItems(items.items || []);
+        renderMyClaims(mine.claims || []);
+        renderTheirClaims(on.claims || []);
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    function renderNotifs(list) {
+      const unread = list.filter(n => !n.read).length;
+      document.getElementById('unread').textContent = unread;
+      const root = document.getElementById('notifs');
+      if (list.length === 0) { root.innerHTML = '<div class="empty">No notifications.</div>'; return; }
+      root.innerHTML = list.slice(0, 10).map(n => `
+        <div class="list-item ${n.read ? '' : 'unread'}">
+          <div class="title">${esc(n.title)}</div>
+          <div class="body">${esc(n.body || '')}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderItems(list) {
+      const root = document.getElementById('items');
+      if (list.length === 0) { root.innerHTML = '<div class="empty">You haven\'t reported anything yet.</div>'; return; }
+      root.innerHTML = list.map(it => {
+        const photo = resolvePhotoUrl((it.photos && it.photos[0]) || it.photo_url);
+        return `
+          <div class="card" onclick="location.href='item.html?id=${it.id}'">
+            <div class="thumb">${photo ? `<img src="${esc(photo)}" alt="" />` : '📦'}</div>
+            <div class="body">
+              <div class="row">
+                <span class="badge ${it.type}">${it.type.toUpperCase()}</span>
+                <span class="date">${fmtDate(it.created_at)}</span>
+              </div>
+              <h3>${esc(it.title)}</h3>
+              <div class="meta">${esc(it.category)} · ${esc(it.location || '')}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function renderMyClaims(list) {
+      const root = document.getElementById('my-claims');
+      if (list.length === 0) { root.innerHTML = '<div class="empty">You haven\'t submitted any claims.</div>'; return; }
+      root.innerHTML = list.map(c => `
+        <div class="list-item">
+          <div class="title">${esc(c.item_title || 'Item #' + c.item_id)} <span class="badge status">${(c.status || '').toUpperCase()}</span></div>
+          <div class="body">Proof: ${esc(c.proof)}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderTheirClaims(list) {
+      const root = document.getElementById('their-claims');
+      if (list.length === 0) { root.innerHTML = '<div class="empty">No claims on your items yet.</div>'; return; }
+      root.innerHTML = list.map(c => `
+        <div class="list-item">
+          <div class="title">${esc(c.claimant_name || 'Someone')} claimed ${esc(c.item_title || '#' + c.item_id)}
+            <span class="badge status">${(c.status || '').toUpperCase()}</span></div>
+          <div class="body">Proof: ${esc(c.proof)}</div>
+          ${c.status === 'pending' ? `
+            <div style="margin-top:8px;display:flex;gap:8px">
+              <button class="primary" style="width:auto;padding:8px 14px" onclick="decide(${c.id},'approve')">Approve</button>
+              <button class="primary" style="width:auto;padding:8px 14px;background:var(--red)" onclick="decide(${c.id},'reject')">Reject</button>
+            </div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    async function decide(id, action) {
+      try {
+        await api('/api/claims/' + id + '/' + action, 'PUT');
+        load();
+      } catch (e) { alert(e.message); }
+    }
+
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UniFind Admin — Items</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="shell" class="app"></div>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    (async () => {
+      const user = await requireAdmin();
+      if (!user) return;
+      renderShell('items', user);
+      const main = document.getElementById('main');
+      main.innerHTML = `
+        <div class="page-head"><h2>Items</h2></div>
+        <div class="toolbar">
+          <input id="q" placeholder="Search keywords" />
+          <select id="type">
+            <option value="">All types</option>
+            <option value="lost">Lost</option>
+            <option value="found">Found</option>
+          </select>
+          <select id="status">
+            <option value="">All statuses</option>
+            <option>open</option><option>matched</option><option>claimed</option><option>closed</option>
+          </select>
+          <button class="btn" id="go">Apply</button>
+        </div>
+        <div class="panel" style="padding:0">
+          <table id="tbl">
+            <thead><tr>
+              <th>ID</th><th>Type</th><th>Title</th><th>Category</th>
+              <th>Location</th><th>Reporter</th><th>Status</th><th>Posted</th><th></th>
+            </tr></thead>
+            <tbody><tr><td colspan="9" style="padding:20px;color:var(--muted)">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      `;
+
+      async function load() {
+        const params = new URLSearchParams();
+        const q = document.getElementById('q').value.trim();
+        const type = document.getElementById('type').value;
+        const status = document.getElementById('status').value;
+        if (q) params.set('q', q);
+        if (type) params.set('type', type);
+        if (status) params.set('status', status);
+        const data = await api('/api/items?' + params.toString());
+        const rows = (data.items || []).map(i => `
+          <tr>
+            <td>#${i.id}</td>
+            <td><span class="badge ${i.type}">${i.type.toUpperCase()}</span></td>
+            <td>${(i.title || '').replace(/</g,'&lt;')}</td>
+            <td>${i.category}</td>
+            <td>${(i.location || '').replace(/</g,'&lt;')}</td>
+            <td>${i.user_name || i.user_id}</td>
+            <td><span class="badge ${i.status}">${i.status}</span></td>
+            <td>${new Date(i.created_at).toLocaleDateString()}</td>
+            <td>
+              <button class="btn" style="background:var(--red)" onclick="delItem(${i.id})">Remove</button>
+            </td>
+          </tr>
+        `).join('') || '<tr><td colspan="9" style="padding:20px;color:var(--muted)">No items match.</td></tr>';
+        document.querySelector('#tbl tbody').innerHTML = rows;
+      }
+
+      window.delItem = async (id) => {
+        if (!confirm('Remove this item?')) return;
+        await api(`/api/admin/items/${id}`, 'DELETE');
+        load();
+      };
+
+      document.getElementById('go').addEventListener('click', load);
+      document.getElementById('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') load(); });
+      load();
+    })();
+  </script>
+</body>
+</html>
